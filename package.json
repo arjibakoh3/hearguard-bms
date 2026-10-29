@@ -1,0 +1,41 @@
+{
+  "name": "hearguard",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build --webpack",
+    "start": "next start",
+    "lint": "eslint . --max-warnings=0",
+    "typecheck": "tsc --noEmit",
+    "account:provision": "node scripts/provision-user.mjs"
+  },
+  "dependencies": {
+    "@next/env": "16.3.0",
+    "@stackline/xlsx": "1.0.9",
+    "@supabase/ssr": "^0.12.4",
+    "@supabase/supabase-js": "^2.112.3",
+    "lucide-react": "^1.31.0",
+    "next": "16.3.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "recharts": "^3.10.1",
+    "server-only": "^0.0.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@vitest/coverage-v8": "^4.1.10",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.0",
+    "supabase": "2.113.0",
+    "tailwindcss": "^4",
+    "typescript": "^5",
+    "vite": "8.2.1",
+    "vitest": "^4.1.10"
+  },
+  "packageManager": "pnpm@10.15.0"
+}
