@@ -1,0 +1,32 @@
+name: Container check
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Build production image
+        run: docker build --tag hearguard-bms:check .
+      - name: Start container with synthetic configuration
+        run: >-
+          docker run --detach --name hearguard-bms-check
+          --publish 127.0.0.1:3000:3000
+          --env NEXT_PUBLIC_SUPABASE_URL=https://container-check.supabase.co
+          --env NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_container_check_placeholder
+          hearguard-bms:check
+      - name: Check HTTP and route protection
+        run: node scripts/smoke-http.mjs
+      - name: Show logs and remove test container
+        if: always()
+        run: |
+          docker logs hearguard-bms-check || true
+          docker rm --force hearguard-bms-check || true

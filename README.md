@@ -26,4 +26,23 @@ Configure `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` 
 
 Signed reports require `private/report-assets/physician-signature.png` at runtime. The image is deliberately absent from Git. Provision it through an approved private deployment mechanism before enabling signed report printing.
 
-BMS Cloud runtime compatibility, private Add-on visibility, secret handling, and external Supabase connectivity still require validation before deployment. Do not import clinical records into a test environment.
+## BMS Developer Portal
+
+Use **Dedicated Pod**. This application requires a Next.js server and cannot run on the Shared (SPA) platform.
+
+| Field | Value |
+| --- | --- |
+| Branch | `main` |
+| Dockerfile | `Dockerfile` |
+| Container port | `3000` |
+| Pods | `1` for the initial test |
+
+The Dockerfile builds a standalone Next.js server on Node.js 22, copies its static and public assets, and runs as an unprivileged user. `.dockerignore` allows only build inputs, excluding environment files, patient data, local builds, private assets and Git history.
+
+Set the approved Supabase URL and publishable key in the Portal's container environment variables. These values are read by server code; the container is built without environment files. Provision the trusted server secret only when the relevant private-file operations are enabled. Database setup remains a separate prerequisite.
+
+Importing GitHub into BMS creates a Gitea copy. Before rebuilding, sync or re-import the updated GitHub source and confirm that the root `Dockerfile` is present in the selected BMS repository. Auto-deploy on a Gitea push does not establish GitHub-to-Gitea synchronization.
+
+For this build retry, disable **Auto-fix build errors with AI** if Claude CLI is returning a malformed stream. That gateway failure is separate from the Docker build and is not needed to build this repository.
+
+GitHub Actions builds the Linux container and checks the login page, static assets and anonymous route protection using synthetic configuration. It does not connect to a clinical database. External Supabase connectivity, secret handling and Add-on visibility still require validation in BMS before operational use.

@@ -1,0 +1,15 @@
+# Allow only application build inputs. Secrets, data, local builds and Git
+# history are excluded even if they exist in a developer's working directory.
+*
+!Dockerfile
+!.dockerignore
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!next.config.ts
+!tsconfig.json
+!postcss.config.mjs
+!src/
+!src/**
+!public/
+!public/**

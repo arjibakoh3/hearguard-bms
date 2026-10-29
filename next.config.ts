@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Produce the minimal Node.js server copied into the native macOS bundle.
+  // Produce the minimal Node.js server copied into the deployment container.
   output: "standalone",
   outputFileTracingIncludes: {
     "/*": ["./private/report-assets/physician-signature.png"],
