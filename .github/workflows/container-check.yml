@@ -11,19 +11,57 @@ permissions:
 jobs:
   build-and-smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: synthetic-postgres-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Create isolated databases with an unprivileged owner
+        run: |
+          docker exec ${{ job.services.postgres.id }} psql -U postgres -v ON_ERROR_STOP=1 -c "CREATE ROLE hearguard_app LOGIN PASSWORD 'synthetic-app-password' NOSUPERUSER NOBYPASSRLS;"
+          docker exec ${{ job.services.postgres.id }} psql -U postgres -v ON_ERROR_STOP=1 -c 'CREATE DATABASE hearguard_ci_test OWNER hearguard_app;'
+          docker exec ${{ job.services.postgres.id }} psql -U postgres -v ON_ERROR_STOP=1 -c 'CREATE DATABASE hearguard_http_test OWNER hearguard_app;'
+      - name: Install dependencies and check source
+        run: |
+          npm install --global pnpm@10.15.0
+          pnpm install --frozen-lockfile --ignore-scripts
+          pnpm typecheck
+          pnpm lint
+      - name: Test PostgreSQL authentication, clinical permissions and storage
+        env:
+          DATABASE_URL: postgresql://hearguard_app:synthetic-app-password@127.0.0.1:5432/hearguard_ci_test
+          HEARGUARD_TEST_DATABASE: "1"
+        run: pnpm test:database
       - name: Build production image
         run: docker build --tag hearguard-bms:check .
-      - name: Start container with synthetic configuration
+      - name: Start container against a fresh PostgreSQL database
         run: >-
           docker run --detach --name hearguard-bms-check
-          --publish 127.0.0.1:3000:3000
-          --env NEXT_PUBLIC_SUPABASE_URL=https://container-check.supabase.co
-          --env NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_container_check_placeholder
+          --network host
+          --env DB_HOST=127.0.0.1 --env DB_PORT=5432
+          --env DB_NAME=hearguard_http_test --env DB_USER=hearguard_app
+          --env DB_PASS=synthetic-app-password
+          --env HEARGUARD_ADMIN_EMAIL=smoke-admin@example.test
+          --env HEARGUARD_ADMIN_PASSWORD=synthetic-smoke-password-only
           hearguard-bms:check
       - name: Check HTTP and route protection
+        env:
+          HEARGUARD_SMOKE_LOGIN: "1"
+          HEARGUARD_ADMIN_EMAIL: smoke-admin@example.test
+          HEARGUARD_ADMIN_PASSWORD: synthetic-smoke-password-only
         run: node scripts/smoke-http.mjs
       - name: Show logs and remove test container
         if: always()

@@ -10,7 +10,7 @@ import type {
 } from "@/application/import-view-models";
 import type { HearGuardImportRepository } from "@/application/ports/hearguard-import-repository";
 import type { Audiogram } from "@/domain/hearing/types/audiogram";
-import { createSupabaseServerClient } from "@/infrastructure/supabase/server-client";
+import { createDatabaseClient } from "@/infrastructure/postgres/server-client";
 
 const ImportBatchStatusSchema = z.enum([
   "UPLOADED",
@@ -181,9 +181,9 @@ function toAudiogram(row: z.infer<typeof BaselineAudiogramRowSchema>): Audiogram
   };
 }
 
-export class SupabaseHearGuardImportRepository implements HearGuardImportRepository {
+export class PostgresHearGuardImportRepository implements HearGuardImportRepository {
   async createBatch(input: Parameters<HearGuardImportRepository["createBatch"]>[0]): Promise<string> {
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const batchResponse = await client
       .from("import_batches")
       .insert({
@@ -220,7 +220,7 @@ export class SupabaseHearGuardImportRepository implements HearGuardImportReposit
   }
 
   async listBatches(): Promise<ImportBatchListItem[]> {
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const response = await client
       .from("import_batch_directory")
       .select("*")
@@ -231,7 +231,7 @@ export class SupabaseHearGuardImportRepository implements HearGuardImportReposit
   }
 
   async getBatch(id: string): Promise<ImportBatchListItem | null> {
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const response = await client
       .from("import_batch_directory")
       .select("*")
@@ -242,7 +242,7 @@ export class SupabaseHearGuardImportRepository implements HearGuardImportReposit
   }
 
   async listBatchRows(id: string): Promise<ImportBatchRow[]> {
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const response = await client
       .from("import_batch_rows")
       .select("id, import_batch_id, organization_id, row_number, source_data_json, normalized_data_json, classification, messages_json, matched_employee_id")
@@ -253,7 +253,7 @@ export class SupabaseHearGuardImportRepository implements HearGuardImportReposit
   }
 
   async getValidationContext(organizationId: string): Promise<ImportValidationContext> {
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const [departmentResponse, employeeResponse, audiogramResponse, baselineResponse] = await Promise.all([
       client.from("departments").select("id, code, name").eq("organization_id", organizationId).eq("active", true),
       client.from("employees").select("id, employee_number, first_name, last_name, department_id").eq("organization_id", organizationId),
@@ -312,7 +312,7 @@ export class SupabaseHearGuardImportRepository implements HearGuardImportReposit
   }
 
   async saveValidation(input: Parameters<HearGuardImportRepository["saveValidation"]>[0]): Promise<void> {
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const response = await client.rpc("save_import_batch_validation", {
       target_batch_id: input.batchId,
       mapping_json: input.mapping,
@@ -322,7 +322,7 @@ export class SupabaseHearGuardImportRepository implements HearGuardImportReposit
   }
 
   async commitBatch(id: string): Promise<CommitImportResult> {
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const response = await client.rpc("commit_import_batch", { target_batch_id: id });
     if (response.error) throw new Error(`ยืนยันการนำเข้าไม่สำเร็จ: ${response.error.message}`);
     return CommitResultSchema.parse(response.data);

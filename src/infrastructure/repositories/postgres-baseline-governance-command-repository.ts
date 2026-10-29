@@ -6,7 +6,7 @@ import type {
   BaselineReviewDecision,
   BaselineReviewResult,
 } from "@/application/ports/baseline-governance-command-repository";
-import { createSupabaseServerClient } from "@/infrastructure/supabase/server-client";
+import { createDatabaseClient } from "@/infrastructure/postgres/server-client";
 
 const ReviewResultSchema = z.object({
   suggestionId: z.string().uuid(),
@@ -16,12 +16,12 @@ const ReviewResultSchema = z.object({
   thaiFollowUpMutated: z.literal(false),
 });
 
-export class SupabaseBaselineGovernanceCommandRepository
+export class PostgresBaselineGovernanceCommandRepository
   implements BaselineGovernanceCommandRepository
 {
   async createSuggestions(input: Parameters<BaselineGovernanceCommandRepository["createSuggestions"]>[0]): Promise<number> {
     if (input.length === 0) return 0;
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const response = await client.rpc("replace_analytical_baseline_suggestions", {
       p_suggestions: input,
     });
@@ -36,7 +36,7 @@ export class SupabaseBaselineGovernanceCommandRepository
     decision: BaselineReviewDecision,
     reviewNote: string,
   ): Promise<BaselineReviewResult> {
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const response = await client.rpc("review_baseline_suggestion", {
       p_suggestion_id: suggestionId,
       p_decision: decision,

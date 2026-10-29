@@ -6,8 +6,7 @@ import { evaluateThaiHearingRule } from "@/domain/hearing/rules/thai-hearing-256
 import { evaluateOshaSts } from "@/domain/hearing/rules/osha-sts";
 import { measuredThresholdsFromObservations, type Audiogram } from "@/domain/hearing/types/audiogram";
 import type { ImportValidationMessage } from "@/domain/imports/csv-audiometry-import";
-import { createSupabaseServerClient } from "@/infrastructure/supabase/server-client";
-import { createSupabaseAdminClient } from "@/infrastructure/supabase/admin-client";
+import { createDatabaseClient } from "@/infrastructure/postgres/server-client";
 import { getCurrentActor } from "@/lib/server/current-actor";
 
 export const BEERTHIP_ORGANIZATION_CODE = "BEERTHIP_1991";
@@ -72,7 +71,7 @@ function message(code: string, severity: "WARNING" | "ERROR", description: strin
 export class BeerthipImportService {
   async attachOriginals(batchId: string, uploads: readonly File[]): Promise<void> {
     const actor = await getCurrentActor();
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const batchResponse = await client.from("beerthip_import_batches")
       .select("id,organization_id,status").eq("id", batchId).single();
     if (batchResponse.error || !batchResponse.data) throw new Error("ไม่พบ batch ที่แนบต้นฉบับ");
@@ -86,7 +85,6 @@ export class BeerthipImportService {
     if (fileResponse.error) throw new Error(fileResponse.error.message);
     const expected = new Map((fileResponse.data as BeerthipStoredFile[]).map((file) => [file.source_filename, file]));
     const seen = new Set<string>();
-    const admin = createSupabaseAdminClient();
     for (const upload of uploads) {
       if (!(upload instanceof File) || !upload.name.toLowerCase().endsWith(".xlsx") || upload.size > 1_000_000) {
         throw new Error("รองรับ .xlsx ไม่เกิน 1 MB ต่อไฟล์");
@@ -99,24 +97,24 @@ export class BeerthipImportService {
       const bytes = new Uint8Array(await upload.arrayBuffer());
       const sha256 = createHash("sha256").update(bytes).digest("hex");
       if (sha256 !== file.expected_sha256) {
-        await admin.from("beerthip_import_files").update({ source_status: "FAILED", verified_sha256: null,
+        await client.from("beerthip_import_files").update({ source_status: "FAILED", verified_sha256: null,
           verified_at: null }).eq("id", file.id).neq("review_status", "IMPORTED");
         throw new Error(`SHA-256 ของ ${safeName} ไม่ตรงกับไฟล์ที่ staging`);
       }
       if (file.review_status === "IMPORTED") continue;
-      const uploaded = await admin.storage.from("beerthip-source-xlsx").upload(file.storage_path, bytes, {
+      const uploaded = await client.storage.from("beerthip-source-xlsx").upload(file.storage_path, bytes, {
         contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", upsert: true,
       });
       if (uploaded.error) throw new Error(`จัดเก็บ ${safeName} ไม่สำเร็จ: ${uploaded.error.message}`);
-      const downloaded = await admin.storage.from("beerthip-source-xlsx").download(file.storage_path);
+      const downloaded = await client.storage.from("beerthip-source-xlsx").download(file.storage_path);
       if (downloaded.error || !downloaded.data) throw new Error(`ตรวจไฟล์ ${safeName} หลังจัดเก็บไม่สำเร็จ`);
       const storedHash = createHash("sha256").update(new Uint8Array(await downloaded.data.arrayBuffer())).digest("hex");
       if (storedHash !== file.expected_sha256) {
-        await admin.from("beerthip_import_files").update({ source_status: "FAILED", verified_sha256: null,
+        await client.from("beerthip_import_files").update({ source_status: "FAILED", verified_sha256: null,
           verified_at: null }).eq("id", file.id);
         throw new Error(`SHA-256 ของ ${safeName} หลังจัดเก็บไม่ตรง`);
       }
-      const verified = await admin.from("beerthip_import_files").update({ source_status: "VERIFIED",
+      const verified = await client.from("beerthip_import_files").update({ source_status: "VERIFIED",
         verified_sha256: storedHash, verified_at: new Date().toISOString() }).eq("id", file.id);
       if (verified.error) throw new Error(`บันทึกผลตรวจ ${safeName} ไม่สำเร็จ: ${verified.error.message}`);
     }
@@ -125,7 +123,7 @@ export class BeerthipImportService {
   async stage(files: readonly File[]): Promise<string> {
     if (files.length < 1 || files.length > 50) throw new Error("เลือกไฟล์ XLSX 1–50 ไฟล์");
     if (files.reduce((total, file) => total + file.size, 0) > 5_000_000) throw new Error("ขนาดไฟล์รวมต้องไม่เกิน 5 MB");
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const organization = await client.from("organizations").select("id")
       .eq("code", BEERTHIP_ORGANIZATION_CODE).eq("active", true).single();
     if (organization.error || !organization.data) throw new Error("ไม่พบองค์กร Beerthip สำหรับนำเข้า");
@@ -232,14 +230,14 @@ export class BeerthipImportService {
   }
 
   async list(): Promise<BeerthipBatch[]> {
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const response = await client.from("beerthip_import_batches").select("*").order("uploaded_at", { ascending: false }).limit(50);
     if (response.error) throw new Error(response.error.message);
     return response.data as BeerthipBatch[];
   }
 
   async get(id: string): Promise<{ batch: BeerthipBatch; rows: BeerthipStoredRow[]; files: BeerthipStoredFile[] } | null> {
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const batchResult = await client.from("beerthip_import_batches").select("*").eq("id", id).maybeSingle();
     if (batchResult.error) throw new Error(batchResult.error.message);
     if (!batchResult.data) return null;

@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { createSupabaseServerClient } from "@/infrastructure/supabase/server-client";
+import { createDatabaseClient } from "@/infrastructure/postgres/server-client";
 import { loginEmailFromIdentifier } from "@/domain/auth/login-identifier";
 
 const LoginSchema = z.object({
@@ -14,6 +14,7 @@ function safeDestination(value: FormDataEntryValue | null): string {
   return typeof value === "string"
     && value.startsWith("/")
     && !value.startsWith("//")
+    && !/[\\\u0000-\u001f\u007f]/.test(value)
     ? value
     : "/workspace";
 }
@@ -33,7 +34,7 @@ export async function login(formData: FormData): Promise<never> {
     redirect(loginErrorDestination(nextPath, "invalid"));
   }
 
-  const client = await createSupabaseServerClient();
+  const client = await createDatabaseClient();
   let email: string;
   try {
     email = loginEmailFromIdentifier(parsed.data.identifier);
@@ -49,7 +50,7 @@ export async function login(formData: FormData): Promise<never> {
 }
 
 export async function logout() {
-  const client = await createSupabaseServerClient();
+  const client = await createDatabaseClient();
   await client.auth.signOut();
   redirect("/login");
 }

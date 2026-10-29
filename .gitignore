@@ -61,7 +61,8 @@ next-env.d.ts
 /docs/
 /native/
 /supabase/
-/tests/
+/tests/*
+!/tests/database/
 /private/
 *.xlsx
 *.xls

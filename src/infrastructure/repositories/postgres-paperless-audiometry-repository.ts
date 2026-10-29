@@ -15,7 +15,7 @@ import type {
   PriorHistorySnapshot,
 } from "@/application/paperless-audiometry-models";
 import type { AudiogramThresholdObservation } from "@/domain/hearing";
-import { createSupabaseServerClient } from "@/infrastructure/supabase/server-client";
+import { createDatabaseClient } from "@/infrastructure/postgres/server-client";
 
 const NumericSchema = z.union([z.number(), z.string().transform(Number)]);
 const NullableNumericSchema = NumericSchema.nullable();
@@ -271,11 +271,11 @@ function mapImportantCondition(row: z.infer<typeof ImportantConditionRowSchema>)
   };
 }
 
-export class SupabasePaperlessAudiometryRepository
+export class PostgresPaperlessAudiometryRepository
   implements PaperlessAudiometryRepository
 {
   async getWorkspace(): Promise<PaperlessWorkspace> {
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const [employeeResponse, organizationResponse, departmentResponse, recordResponse, baselineResponse, audiometerResponse, examinerResponse, userResponse] = await Promise.all([
       client.from("hospital_employee_directory").select("*").eq("active", true).order("hospital_number"),
       client.from("organization_directory").select("id,code,name,name_th").eq("active", true).order("name"),
@@ -380,7 +380,7 @@ export class SupabasePaperlessAudiometryRepository
   }
 
   async getRecord(id: string): Promise<PaperlessAudiogramRecord | null> {
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const [directoryResponse, recordResponse, thresholdResponse, pretestResponse, historyResponse, otoscopyResponse, importantSnapshotResponse] = await Promise.all([
       client.from("paperless_audiometry_directory").select("*").eq("id", id).maybeSingle(),
       client.from("audiograms").select("id,employee_id,exam_type,examined_at,test_context,hours_since_noise_exposure,audiometer_model,audiometer_serial,calibration_date,examiner,location,is_valid,validation_notes,source_monitoring_audiogram_id,follow_up_case_id,supersedes_audiogram_id,created_at,updated_at,finalized_by,audiometer_id,examiner_user_id,equipment_calibration_status,equipment_calibration_acknowledged").eq("id", id).maybeSingle(),
@@ -547,7 +547,7 @@ export class SupabasePaperlessAudiometryRepository
   }
 
   async lookupPatientEmployments(hospitalNumber: string): Promise<HospitalPatientEmploymentSummary | null> {
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const response = await client.rpc("lookup_hospital_patient_employments", {
       p_hospital_number: hospitalNumber,
     });
@@ -556,7 +556,7 @@ export class SupabasePaperlessAudiometryRepository
   }
 
   async getImportantHearingHistory(employeeId: string): Promise<ImportantHearingHistoryState | null> {
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const employeeResponse = await client
       .from("hospital_employee_directory")
       .select("patient_id")
@@ -581,7 +581,7 @@ export class SupabasePaperlessAudiometryRepository
   }
 
   async getPatientTimeline(patientId: string): Promise<HospitalPatientTimeline | null> {
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const patientResponse = await client
       .from("hospital_patients")
       .select("id,hospital_number")
@@ -701,7 +701,7 @@ export class SupabasePaperlessAudiometryRepository
   }
 
   async listPendingEmploymentTransitions(): Promise<PendingEmploymentTransition[]> {
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const transitionResponse = await client
       .from("hospital_patient_employment_transitions")
       .select("id,patient_id,from_employee_id,to_employee_id,from_organization_id,to_organization_id,effective_date,created_at")
@@ -751,7 +751,7 @@ export class SupabasePaperlessAudiometryRepository
     sourceMonitoringAudiogramId: string | null;
     examinedAt: string;
   }): Promise<PriorHistorySnapshot | null> {
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const currentEmployeeResponse = await client
       .from("employees")
       .select("patient_id,organization_id")
@@ -871,7 +871,7 @@ export class SupabasePaperlessAudiometryRepository
   }
 
   async registerEmployee(input: Parameters<PaperlessAudiometryRepository["registerEmployee"]>[0]): Promise<string> {
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const response = await client.rpc("register_hospital_employee", { p_payload: input });
     assertNoError(response.error, "Unable to register hospital employee");
     return z.object({ employeeId: z.string().uuid() }).parse(response.data).employeeId;
@@ -880,7 +880,7 @@ export class SupabasePaperlessAudiometryRepository
   async registerOrganization(
     input: Parameters<PaperlessAudiometryRepository["registerOrganization"]>[0],
   ): Promise<{ organizationId: string; code: string }> {
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const response = await client.rpc("register_hospital_organization", { p_payload: input });
     assertNoError(response.error, "Unable to register organization");
     return z.object({ organizationId: z.string().uuid(), code: z.string() }).parse(response.data);
@@ -889,7 +889,7 @@ export class SupabasePaperlessAudiometryRepository
   async upsertAudiometer(
     input: Parameters<PaperlessAudiometryRepository["upsertAudiometer"]>[0],
   ): Promise<string> {
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const response = await client.rpc("upsert_hospital_audiometer", { p_payload: input });
     assertNoError(response.error, "Unable to save hospital audiometer");
     return z.string().uuid().parse(response.data);
@@ -898,7 +898,7 @@ export class SupabasePaperlessAudiometryRepository
   async manageImportantHearingCondition(
     input: Parameters<PaperlessAudiometryRepository["manageImportantHearingCondition"]>[0],
   ): Promise<string> {
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const response = await client.rpc("manage_patient_hearing_condition", {
       p_employee_id: input.employeeId,
       p_payload: input.condition,
@@ -908,13 +908,13 @@ export class SupabasePaperlessAudiometryRepository
   }
 
   async completeEmploymentTransfer(id: string): Promise<void> {
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const response = await client.rpc("complete_employment_transfer", { p_transition_id: id });
     assertNoError(response.error, "Unable to complete employment transfer");
   }
 
   async saveDraft(id: string | null, input: PaperlessAudiogramInput): Promise<string> {
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const response = await client.rpc("save_paperless_audiogram_draft", {
       p_audiogram_id: id,
       p_payload: input,
@@ -928,7 +928,7 @@ export class SupabasePaperlessAudiometryRepository
     thaiEvaluation: Parameters<PaperlessAudiometryRepository["finalize"]>[1],
     oshaEvaluation: Parameters<PaperlessAudiometryRepository["finalize"]>[2],
   ): Promise<{ audiogramId: string; followUpCaseId: string | null }> {
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const response = await client.rpc("finalize_paperless_audiogram", {
       p_audiogram_id: id,
       p_thai_evaluation: thaiEvaluation,
@@ -943,7 +943,7 @@ export class SupabasePaperlessAudiometryRepository
   }
 
   async proposeInitialBaseline(id: string): Promise<string> {
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const response = await client.rpc("propose_initial_thai_baseline", { p_audiogram_id: id });
     assertNoError(response.error, "Unable to propose initial Thai baseline");
     return z.string().uuid().parse(response.data);

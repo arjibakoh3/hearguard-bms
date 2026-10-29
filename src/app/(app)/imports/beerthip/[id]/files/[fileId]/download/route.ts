@@ -1,7 +1,6 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
-import { createSupabaseAdminClient } from "@/infrastructure/supabase/admin-client";
-import { createSupabaseServerClient } from "@/infrastructure/supabase/server-client";
+import { createDatabaseClient } from "@/infrastructure/postgres/server-client";
 import { getCurrentActor } from "@/lib/server/current-actor";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +14,7 @@ export async function GET(_request: Request, context: {
   }
   const actor = await getCurrentActor();
   if (!actor) return new Response("Unauthorized", { status: 401 });
-  const client = await createSupabaseServerClient();
+  const client = await createDatabaseClient();
   const fileResult = await client.from("beerthip_import_files").select("*")
     .eq("id", fileId).eq("batch_id", id).maybeSingle();
   const file = fileResult.data;
@@ -25,7 +24,8 @@ export async function GET(_request: Request, context: {
       && actor.organizationIds.includes(file.organization_id));
   if (!permitted) return new Response("Forbidden", { status: 403 });
   if (file.source_status !== "VERIFIED") return new Response("Original not verified", { status: 409 });
-  const downloaded = await createSupabaseAdminClient().storage.from("beerthip-source-xlsx")
+  const fileClient = await createDatabaseClient();
+  const downloaded = await fileClient.storage.from("beerthip-source-xlsx")
     .download(file.storage_path);
   if (downloaded.error || !downloaded.data) return new Response("Original unavailable", { status: 503 });
   const bytes = new Uint8Array(await downloaded.data.arrayBuffer());

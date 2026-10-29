@@ -21,7 +21,10 @@ ENV NODE_ENV=production \
 COPY --from=builder --chown=node:node /app/.next/standalone ./
 COPY --from=builder --chown=node:node /app/.next/static ./.next/static
 COPY --from=builder --chown=node:node /app/public ./public
+COPY --from=builder --chown=node:node /app/server ./server
+COPY --from=builder --chown=node:node /app/database ./database
+COPY --from=builder --chown=node:node /app/scripts/start.mjs /app/scripts/migrate.mjs /app/scripts/provision-user.mjs ./scripts/
 
 USER node
 EXPOSE 3000
-CMD ["node", "server.js"]
+CMD ["node", "scripts/start.mjs"]

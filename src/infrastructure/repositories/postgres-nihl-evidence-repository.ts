@@ -18,7 +18,7 @@ import type {
 } from "@/application/nihl-evidence-models";
 import { NihlReviewConflictError } from "@/application/nihl-evidence-models";
 import type { NihlEvidenceRepository } from "@/application/ports/nihl-evidence-repository";
-import { createSupabaseServerClient } from "@/infrastructure/supabase/server-client";
+import { createDatabaseClient } from "@/infrastructure/postgres/server-client";
 
 const DatabaseNumber = z.union([z.number(), z.string().transform(Number)]);
 const NullableDatabaseNumber = DatabaseNumber.nullable();
@@ -145,7 +145,7 @@ const AssessmentRow = z.object({
   evidence_json: z.record(z.string(), z.unknown()),
   created_at: z.string(),
   // The unique assessment_id foreign key makes this an inferred one-to-one
-  // PostgREST relationship, so Supabase returns an object (or null), not an array.
+  // PostgREST relationship, so Postgres returns an object (or null), not an array.
   nihl_physician_reviews: ReviewRow.nullable(),
 });
 
@@ -189,9 +189,9 @@ const historyLabels: Record<string, string> = {
   MILITARY_SERVICE: "ประวัติรับราชการทหาร",
 };
 
-export class SupabaseNihlEvidenceRepository implements NihlEvidenceRepository {
+export class PostgresNihlEvidenceRepository implements NihlEvidenceRepository {
   async getWorkspace(employeeId: string, currentAudiogramId?: string | null): Promise<NihlEvidenceWorkspace | null> {
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const identityResponse = await client.from("employees")
       .select("id,patient_id,organization_id,employee_number,first_name,last_name,job_title,organizations(name),hospital_patients(hospital_number)")
       .eq("id", employeeId)
@@ -369,7 +369,7 @@ export class SupabaseNihlEvidenceRepository implements NihlEvidenceRepository {
   }
 
   async saveExposurePeriod(input: NoiseExposurePeriodInput): Promise<string> {
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const identityResponse = await client.from("employees").select("patient_id")
       .eq("id", input.employeeId).maybeSingle();
     assertNoError(identityResponse.error, "Unable to resolve NIHL exposure identity scope");
@@ -383,7 +383,7 @@ export class SupabaseNihlEvidenceRepository implements NihlEvidenceRepository {
   }
 
   async persistAssessment(employeeId: string, audiogramId: string, result: NihlEvidenceResult): Promise<string> {
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const identityResponse = await client.from("employees").select("patient_id")
       .eq("id", employeeId).maybeSingle();
     assertNoError(identityResponse.error, "Unable to resolve NIHL assessment identity scope");
@@ -409,7 +409,7 @@ export class SupabaseNihlEvidenceRepository implements NihlEvidenceRepository {
   }
 
   async reviewAssessment(input: NihlPhysicianReviewInput): Promise<string> {
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const response = await client.rpc("review_nihl_evidence_assessment", {
       p_assessment_id: input.assessmentId,
       p_decision: input.decision,
@@ -420,7 +420,7 @@ export class SupabaseNihlEvidenceRepository implements NihlEvidenceRepository {
   }
 
   async amendReview(input: NihlReviewAmendmentInput): Promise<NihlReviewAmendmentResult> {
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const response = await client.rpc("amend_nihl_physician_review", {
       p_review_id: input.reviewId, p_employee_id: input.employeeId,
       p_expected_revision: input.expectedRevision, p_decision: input.decision,

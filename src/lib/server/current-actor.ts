@@ -3,7 +3,7 @@ import "server-only";
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { createSupabaseServerClient } from "@/infrastructure/supabase/server-client";
+import { createDatabaseClient } from "@/infrastructure/postgres/server-client";
 
 export type AppRole =
   | "HOSPITAL_ADMIN"
@@ -41,7 +41,7 @@ const ROLE_PRIORITY: Record<AppRole, number> = {
 };
 
 export const getCurrentActor = cache(async (): Promise<CurrentActor | null> => {
-  const client = await createSupabaseServerClient();
+  const client = await createDatabaseClient();
   const userResponse = await client.auth.getUser();
   const user = userResponse.data.user;
   if (userResponse.error || !user?.email) return null;

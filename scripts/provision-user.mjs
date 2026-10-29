@@ -4,7 +4,8 @@ import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import nextEnv from "@next/env";
-import { createClient } from "@supabase/supabase-js";
+import { provisionUser } from "../server/identity.mjs";
+import { closeDatabase } from "../server/connection.mjs";
 
 nextEnv.loadEnvConfig(process.cwd());
 
@@ -63,9 +64,6 @@ async function hiddenPassword() {
 }
 
 async function main() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SECRET_KEY;
-  if (!url || !key) throw new Error("Supabase URL or server secret key is unavailable");
   const password = generate ? randomBytes(36).toString("base64url") : await hiddenPassword();
   if (password.length < 16) throw new Error("Password must contain at least 16 characters");
   if (generate) {
@@ -75,54 +73,13 @@ async function main() {
     }
     if (existsSync(outputPath)) throw new Error("Password output file already exists");
   }
-  const client = createClient(url, key, { auth: { persistSession: false } });
-  let organizationId = null;
-  if (organizationCode) {
-    const organization = await client.from("organizations").select("id").eq("code", organizationCode).single();
-    if (organization.error || !organization.data) throw new Error(`Organization ${organizationCode} was not found`);
-    organizationId = organization.data.id;
-  }
-  let physicianOrganizationId = null;
-  if (alsoPhysicianFor) {
-    const organization = await client.from("organizations").select("id")
-      .eq("code", alsoPhysicianFor).eq("active", true).single();
-    if (organization.error || !organization.data) throw new Error(`Physician organization ${alsoPhysicianFor} was not found`);
-    physicianOrganizationId = organization.data.id;
-  }
-  let user = null;
-  for (let page = 1; page <= 20; page += 1) {
-    const result = await client.auth.admin.listUsers({ page, perPage: 100 });
-    if (result.error) throw result.error;
-    user = result.data.users.find((candidate) => candidate.email?.toLowerCase() === email) ?? null;
-    if (user || result.data.users.length < 100) break;
-  }
-  if (user && !rotate) throw new Error("User already exists; pass --rotate to change its password and access");
-  const createdNewUser = !user;
-  if (user) {
-    const result = await client.auth.admin.updateUserById(user.id, { password, email_confirm: true });
-    if (result.error) throw result.error;
-  } else {
-    const result = await client.auth.admin.createUser({ email, password, email_confirm: true });
-    if (result.error || !result.data.user) throw result.error ?? new Error("User creation failed");
-    user = result.data.user;
-  }
-  const accessRows = [{ user_id: user.id, organization_id: organizationId, role, active: true }];
-  if (physicianOrganizationId) {
-    accessRows.push({ user_id: user.id, organization_id: physicianOrganizationId,
-      role: "OCCUPATIONAL_PHYSICIAN", active: true });
-  }
-  const access = await client.from("user_organization_access")
-    .upsert(accessRows, { onConflict: "user_id,organization_id,role" });
-  if (access.error) {
-    if (createdNewUser) await client.auth.admin.deleteUser(user.id);
-    throw access.error;
-  }
+  await provisionUser({ email, password, role, organizationCode, alsoPhysicianFor, rotate, fullName: option("--name") ?? "" });
   if (generate) writeFileSync(outputPath, `${password}\n`, { flag: "wx", mode: 0o600 });
   console.log(`${rotate ? "Rotated" : "Created"} ${email} as ${role}${organizationCode ? ` for ${organizationCode}` : ""}${alsoPhysicianFor ? ` and OCCUPATIONAL_PHYSICIAN for ${alsoPhysicianFor}` : ""}.`);
   if (generate) console.log(`One-time password saved with mode 0600 to ${outputPath}.`);
 }
 
-main().catch((error) => {
+main().finally(closeDatabase).catch((error) => {
   console.error(error instanceof Error ? error.message : "Provisioning failed");
   process.exitCode = 1;
 });

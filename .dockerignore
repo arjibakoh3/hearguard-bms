@@ -13,3 +13,12 @@
 !src/**
 !public/
 !public/**
+!server/
+!server/**
+!database/
+!database/migrations/
+!database/migrations/*.sql
+!scripts/
+!scripts/start.mjs
+!scripts/migrate.mjs
+!scripts/provision-user.mjs

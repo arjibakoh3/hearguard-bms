@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { PostgresClient } from "@/infrastructure/postgres/server-client";
 import { z } from "zod";
 import { NihlPhysicianReviewInputSchema } from "@/application/nihl-evidence-models";
 import type { ReportNihlReview } from "@/application/view-models";
@@ -16,7 +16,7 @@ const ReportAssessmentRow = z.object({
 });
 
 export async function loadReportNihlReview(
-  client: SupabaseClient,
+  client: PostgresClient,
   employeeId: string,
   audiogramId: string,
 ): Promise<ReportNihlReview | null> {

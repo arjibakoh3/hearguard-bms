@@ -143,7 +143,7 @@ export async function reviewBeerthipFile(formData: FormData) {
     const decision = z.enum(["APPROVE", "REJECT", "DEFER"]).parse(formData.get("decision"));
     const note = beerthipReviewNoteSchema.parse(formData.get("reviewNote"));
     const acknowledge = formData.get("acknowledgeWarnings") === "on";
-    const client = await (await import("@/infrastructure/supabase/server-client")).createSupabaseServerClient();
+    const client = await (await import("@/infrastructure/postgres/server-client")).createDatabaseClient();
     const file = await client.from("beerthip_import_files").select("batch_id").eq("id", fileId).single();
     if (file.error || file.data?.batch_id !== batchId) throw new Error("ไฟล์ไม่ตรงกับ batch");
     const result = await client.rpc("review_beerthip_import_file", {

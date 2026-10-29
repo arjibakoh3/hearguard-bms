@@ -8,7 +8,7 @@ import type {
 } from "@/application/hearing-protection-models";
 import type { HearingProtectionRepository } from "@/application/ports/hearing-protection-repository";
 import type { HearingProtectorSummary } from "@/application/view-models";
-import { createSupabaseServerClient } from "@/infrastructure/supabase/server-client";
+import { createDatabaseClient } from "@/infrastructure/postgres/server-client";
 
 const DatabaseNumberSchema = z.union([
   z.number(),
@@ -62,13 +62,13 @@ function assertNoError(error: { message: string } | null, context: string): void
   if (error) throw new Error(`${context}: ${error.message}`);
 }
 
-export class SupabaseHearingProtectionRepository
+export class PostgresHearingProtectionRepository
   implements HearingProtectionRepository
 {
   async listOrganizationProtectors(
     organizationId: string,
   ): Promise<HearingProtectorSummary[]> {
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const response = await client
       .from("hearing_protectors")
       .select("id,organization_id,manufacturer,model,protector_type,nrr_db,snr_db,active,notes")
@@ -81,7 +81,7 @@ export class SupabaseHearingProtectionRepository
   }
 
   async upsertProtector(input: HearingProtectorCatalogInput): Promise<string> {
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const payload = {
       organization_id: input.organizationId,
       manufacturer: input.manufacturer,
@@ -112,7 +112,7 @@ export class SupabaseHearingProtectionRepository
   async getEmployeeContext(
     employeeId: string,
   ): Promise<HearingProtectionEmployeeContext | null> {
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const employeeResponse = await client
       .from("employees")
       .select("id,organization_id,department_id")
@@ -193,7 +193,7 @@ export class SupabaseHearingProtectionRepository
   async assignAndRecordAssessment(
     command: PersistHearingProtectionAssignment,
   ): Promise<{ assignmentId: string; assessmentId: string }> {
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const response = await client.rpc(
       "assign_hearing_protector_and_record_assessment",
       {

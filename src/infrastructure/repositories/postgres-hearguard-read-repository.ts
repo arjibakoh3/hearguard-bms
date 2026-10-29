@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { PostgresClient } from "@/infrastructure/postgres/server-client";
 import { z } from "zod";
 import type { HearGuardReadRepository } from "@/application/ports/hearguard-read-repository";
 import type {
@@ -52,7 +52,7 @@ import {
   calculateObservedPercentage,
   type Audiogram,
 } from "@/domain/hearing";
-import { createSupabaseServerClient } from "@/infrastructure/supabase/server-client";
+import { createDatabaseClient } from "@/infrastructure/postgres/server-client";
 import { EvaluationRowSchema, mapEvaluation } from "./evaluation-summary-mapper";
 import { loadReportNihlReview } from "./report-nihl-review";
 
@@ -808,7 +808,7 @@ function mapFollowUpCase(
   };
 }
 
-async function loadDirectoryOptions(client: SupabaseClient) {
+async function loadDirectoryOptions(client: PostgresClient) {
   const [organizationsResponse, departmentsResponse] = await Promise.all([
     client
       .from("organization_directory")
@@ -855,11 +855,11 @@ async function loadDirectoryOptions(client: SupabaseClient) {
   return { organizations, departments };
 }
 
-export class SupabaseHearGuardReadRepository
+export class PostgresHearGuardReadRepository
   implements HearGuardReadRepository
 {
   async listOrganizations(): Promise<OrganizationListItem[]> {
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const response = await client
       .from("organization_directory")
       .select("*")
@@ -874,7 +874,7 @@ export class SupabaseHearGuardReadRepository
   }
 
   async getOrganization(id: string): Promise<OrganizationDetail | null> {
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const [organizationResponse, departmentsResponse, employeesResponse] =
       await Promise.all([
         client
@@ -940,7 +940,7 @@ export class SupabaseHearGuardReadRepository
   async searchEmployees(
     criteria: EmployeeSearchCriteria,
   ): Promise<EmployeeSearchResult> {
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const firstRow = (criteria.page - 1) * criteria.pageSize;
     const lastRow = firstRow + criteria.pageSize - 1;
     let query = client
@@ -1004,7 +1004,7 @@ export class SupabaseHearGuardReadRepository
   }
 
   async getEmployeeProfile(id: string): Promise<EmployeeProfile | null> {
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const identityResponse = await client
       .from("employees")
       .select(
@@ -1456,7 +1456,7 @@ export class SupabaseHearGuardReadRepository
           && item.ruleCode === "THAI_HEARING_2561",
       )
       .map((item) => item.id);
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const followUpQuery = monitoringEvaluationIds.length > 0
       ? client
           .from("follow_up_cases")
@@ -1528,7 +1528,7 @@ export class SupabaseHearGuardReadRepository
   async searchAudiograms(
     criteria: AudiogramSearchCriteria,
   ): Promise<AudiogramSearchResult> {
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const firstRow = (criteria.page - 1) * criteria.pageSize;
     const lastRow = firstRow + criteria.pageSize - 1;
     let query = client
@@ -1615,7 +1615,7 @@ export class SupabaseHearGuardReadRepository
   async searchFollowUpCases(
     criteria: FollowUpSearchCriteria,
   ): Promise<FollowUpSearchResult> {
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const firstRow = (criteria.page - 1) * criteria.pageSize;
     const lastRow = firstRow + criteria.pageSize - 1;
     const today = new Date().toISOString().slice(0, 10);
@@ -1730,7 +1730,7 @@ export class SupabaseHearGuardReadRepository
   }
 
   async getFollowUpCase(id: string): Promise<FollowUpCaseDetail | null> {
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const [caseResponse, auditResponse] = await Promise.all([
       client.from("follow_up_queue").select("*").eq("id", id).maybeSingle(),
       client
@@ -1787,7 +1787,7 @@ export class SupabaseHearGuardReadRepository
   }
 
   async getPopulationDashboard(): Promise<PopulationDashboard> {
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const [organizationsResponse, departmentsResponse] = await Promise.all([
       client
         .from("organization_population_surveillance")
@@ -1829,7 +1829,7 @@ export class SupabaseHearGuardReadRepository
   async getOrganizationAnalytics(
     id: string,
   ): Promise<OrganizationAnalytics | null> {
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const [organizationResponse, departmentsResponse] = await Promise.all([
       client
         .from("organization_population_surveillance")
@@ -1871,7 +1871,7 @@ export class SupabaseHearGuardReadRepository
     organizationId: string,
     departmentId: string,
   ): Promise<DepartmentPopulationSummary | null> {
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const response = await client
       .from("department_population_surveillance")
       .select("*")
@@ -1890,7 +1890,7 @@ export class SupabaseHearGuardReadRepository
   async searchAuditLogs(
     criteria: AuditLogSearchCriteria,
   ): Promise<AuditLogSearchResult> {
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const firstRow = (criteria.page - 1) * criteria.pageSize;
     const lastRow = firstRow + criteria.pageSize - 1;
     let query = client
@@ -1938,7 +1938,7 @@ export class SupabaseHearGuardReadRepository
   }
 
   async getAuditLog(id: string): Promise<AuditLogDetail | null> {
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const response = await client
       .from("audit_log_directory")
       .select("*")
@@ -1951,7 +1951,7 @@ export class SupabaseHearGuardReadRepository
   async searchBaselineGovernance(
     criteria: BaselineGovernanceSearchCriteria,
   ): Promise<BaselineGovernanceSearchResult> {
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const currentSuggestionResponse = await client
       .from("baseline_interpretation_suggestions")
       .select("id")
@@ -2023,7 +2023,7 @@ export class SupabaseHearGuardReadRepository
   async getBaselineGovernanceSuggestion(
     id: string,
   ): Promise<BaselineGovernanceDetail | null> {
-    const client = await createSupabaseServerClient();
+    const client = await createDatabaseClient();
     const response = await client
       .from("baseline_governance_directory")
       .select("*")

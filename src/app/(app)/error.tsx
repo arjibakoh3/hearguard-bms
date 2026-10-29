@@ -10,7 +10,7 @@ export default function InternalAppError({ reset }: { reset: () => void }) {
         <h1 className="mt-4 text-xl font-semibold text-slate-950">ไม่สามารถโหลดข้อมูลได้</h1>
         <p className="mt-2 text-sm leading-6 text-slate-500">
           ระบบตอบกลับผิดพลาดหรือฐานข้อมูลยังไม่พร้อม โปรดลองอีกครั้ง
-          หากใช้ระบบ local ให้ตรวจว่า Docker และ Supabase กำลังทำงาน
+          หากเกิดข้อผิดพลาดซ้ำ กรุณาติดต่อผู้ดูแลระบบ
         </p>
         <button
           type="button"

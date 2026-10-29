@@ -35,3 +35,29 @@ const protectedPage = await request("/workspace");
 assert.ok([302, 303, 307, 308].includes(protectedPage.status), "Anonymous workspace request must redirect");
 assert.equal(new URL(protectedPage.headers.get("location"), base).pathname, "/login", "Anonymous workspace request must reach login");
 console.log("HTTP smoke check passed: login, static asset, public asset and protected-route redirect");
+
+if (process.env.HEARGUARD_SMOKE_LOGIN === "1") {
+  assert.ok(process.env.HEARGUARD_ADMIN_EMAIL && process.env.HEARGUARD_ADMIN_PASSWORD, "Synthetic smoke credentials required");
+  const action = html.match(/name="(\$ACTION_ID_[a-f0-9]+)"/)?.[1];
+  assert.ok(action, "Login form must expose its server action");
+  const form = new FormData();
+  form.set(action, "");
+  form.set("identifier", process.env.HEARGUARD_ADMIN_EMAIL);
+  form.set("password", process.env.HEARGUARD_ADMIN_PASSWORD);
+  form.set("next", "/workspace");
+  const authenticated = await fetch(new URL("/login", base), {
+    method: "POST", body: form, headers: { Origin: base.origin }, redirect: "manual", signal: AbortSignal.timeout(10000),
+  });
+  assert.equal(authenticated.status, 303, "Valid login must redirect");
+  assert.equal(new URL(authenticated.headers.get("location"), base).pathname, "/workspace");
+  const cookie = authenticated.headers.getSetCookie().find((value) => value.startsWith("__Host-hearguard_session="));
+  assert.ok(cookie, "Production login must issue an opaque session cookie");
+  assert.match(cookie, /; HttpOnly/i); assert.match(cookie, /; Secure/i); assert.match(cookie, /; SameSite=lax/i);
+  for (const path of ["/workspace", "/companies", "/employees", "/audiograms", "/surveillance", "/imports", "/audit", "/paperless-audiometry", "/companies/new", "/paperless-audiometry/equipment"]) {
+    const response = await fetch(new URL(path, base), { headers: { Cookie: cookie.split(";")[0] }, redirect: "manual", signal: AbortSignal.timeout(10000) });
+    const body = await response.text();
+    assert.equal(response.status, 200, `${path} must render for the administrator`);
+    assert.ok(!/Application error:|data-next-error-message|"digest":"\d+"/.test(body), `${path} contained a server-rendering error`);
+  }
+  console.log("Authenticated HTTP smoke passed: production cookie and ten protected application pages");
+}
