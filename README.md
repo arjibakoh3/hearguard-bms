@@ -1,6 +1,6 @@
 # HearGuard — BMS deployment source
 
-Private, source-only snapshot of `arjibakoh3/Hearguard` for testing in BMS Developer Portal. This repository starts with a new Git history and excludes database backups, presentations, documents, test fixtures, local secrets, and patient datasets.
+Public, source-only snapshot of `arjibakoh3/Hearguard` for testing in BMS Developer Portal. This repository starts with a new Git history and excludes database backups, presentations, documents, test fixtures, local secrets, and patient datasets.
 
 Source revision: `defe5bd7ac909f3dce5159a1b4637a9a47d723e4`.
 
